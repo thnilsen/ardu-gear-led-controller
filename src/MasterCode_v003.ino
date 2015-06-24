@@ -1,6 +1,6 @@
 /*
  * RC Retracts Sequencer and LED controller
- * Code by Thomas Nilsen (thomas.nilsen (at) doc-s (dot) co (dot uk)
+ * Code by Thomas Nilsen (thomas.nilsen (at) doc-s (dot) co (dot) uk
  *
  * Code for reading RC changes based on code by rcarduino.blogspot.com - Duane B
  *
@@ -13,6 +13,9 @@
  * 6 servo channels
  * 5 led channels
  * 3 RX inputs
+ * 	- Input 1 = Gear 
+ * 	- Input 2 = LED switch 1
+ *	- Input 3 = LED switch 2
 
  * SERVO 1 = Left inner door
  * SERVO 2 = Right inner door
@@ -59,80 +62,118 @@
  * First parameter is for servo1, last for servo 6
  */
 
-#define SERVO1_MIN 1000
-#define SERVO1_MAX 2000
+#define SERVO1_MIN 1200
+#define SERVO1_MAX 1600
 
 #define SERVO2_MIN 1200
 #define SERVO2_MAX 1800
 
-#define SERVO3_MIN 1200
+#define SERVO3_MIN 1100
 #define SERVO3_MAX 1800
 
 #define SERVO4_MIN 1200
 #define SERVO4_MAX 1800
 
-#define SERVO5_MIN 1200
-#define SERVO5_MAX 1800
+#define SERVO5_MIN 988
+#define SERVO5_MAX 2012
 
 #define SERVO6_MIN 1200
 #define SERVO6_MAX 1800
 
-#define SERVO7_MIN  1200
+#define SERVO7_MIN 1200
 #define SERVO7_MAX 1800
 
 // If the servo direction needs to be reveres, just swap the position of SERVOx_UP and SERVOx_DOWN in the ServoUp_Pos() and ServoDown_Pos() arrays
-int ServoUp_Pos[]   = {SERVO1_MAX, SERVO2_MIN, SERVO3_MIN, SERVO4_MIN, SERVO5_MIN, SERVO6_MIN, SERVO7_MIN}; // Array to hold the startup position of the servo. This will be overwritten if values exists in NVRAM
-int ServoDown_Pos[] = {SERVO1_MIN, SERVO2_MAX, SERVO3_MAX, SERVO4_MAX, SERVO5_MAX, SERVO6_MAX, SERVO7_MAX}; // Array to hold the max travel of each servo
+int ServoUp_Pos[]   = {SERVO1_MAX, SERVO2_MIN, SERVO3_MAX, SERVO4_MIN, SERVO5_MIN, SERVO6_MIN, SERVO7_MIN}; // Array to hold the startup position of the servo. This will be overwritten if values exists in NVRAM
+int ServoDown_Pos[] = {SERVO1_MIN, SERVO2_MAX, SERVO3_MIN, SERVO4_MAX, SERVO5_MAX, SERVO6_MAX, SERVO7_MAX}; // Array to hold the max travel of each servo
 
 /*
  * First sequence is for gear up. Paramerers are {SERVONUM, DELAY TILL NEXT ACTION}
  *  Second sequence is for gear down.
  */
 
-#define GEAR_UP     1  // Do not change
-#define GEAR_DOWN   0	  // Do not change
-#define LED		  1  // Used for cycle ID of LEDs - Do NOT change
-#define SERVO       0	  // Used for Cycle ID of servos - Do NOT change
-#define OFF         0
-#define ON          1
+#define GEAR_UP     1		// Do not change
+#define GEAR_DOWN	0		// Do not change
+#define LED			1		// Used for cycle ID of LEDs - Do NOT change
+#define SERVO       0		// Used for Cycle ID of servos - Do NOT change
+#define OFF         0		// Do not change
+#define ON          1		// Do not change
+
 byte DefaultStartState = GEAR_UP;	// Set which default state we should use - this will be overridern by values in NVRAM
 
-#define CYCLE_STEPS 6  // Defines how many servo steps there are for a full cycle
+#define CYCLE_STEPS 8  // Defines how many servo steps there are for a full cycle
 int ServoSeq[2][CYCLE_STEPS][4] = {
-                        // Gear Up (Type, Device-Channel, Delay, ON/OFF (applies to LED Only))
+                        // Gear Up (Type, Device-Channel, Delay till next event, ON/OFF (applies to LED Only - set to 0 for servo))
                         {
-                          {SERVO, 5, 1000, 0},
-                          {SERVO, 4, 2000, 0},
-                          {SERVO, 3, 3000, 0},
-                          {SERVO, 2, 4000, 0},
-                          {SERVO, 1,    0, 0},
-							 {LED,   1, 2000, OFF}
+							{SERVO, 5, 3010, 0},
+							{SERVO, 6, 1010, 0},
+							{SERVO, 3,  500, 0},
+							{LED,   4, 1500, OFF},
+							{SERVO, 4,    0, 0},
+							{SERVO, 7,    0, 0},						
+							{LED,   1, 5000, OFF},
+							{LED,   5, 2000, OFF},
+							
+							
                         },
 
-                        // Gear Down (Type, Device-Channel, Delay, ON/OFF (applies to LED Only))
+                        // Gear Down (Type, Device-Channel,  Delay till next event, ON/OFF (applies to LED Only - set to 0 for servo))
                         {
-                          {LED,   1, 2000, ON}, 
-							 {SERVO, 1,  500, 0},
-                          {SERVO, 2, 2000, 0},
-                          {SERVO, 3, 4000, 0},
-                          {SERVO, 4, 4000, 0},
-                          {SERVO, 5,    0, 0}
-							 
+							{SERVO, 5, 3000, 0},
+							{SERVO, 3, 1000, 0},
+							{LED,   4, 1000, ON}, 
+							
+							{SERVO, 7,    0, 0},
+							{SERVO, 4,    0, 0},
+							{LED,	1, 2000, ON},
+							{SERVO, 6, 1010, 0},
+							{LED,  	5, 4000, ON},
+							
                         }};
-//Serial.println(ServoSeq[0][3][0]); Would print 1 which is the last entry of gear down
 
-byte ServoSteps[]   = {10,   10,   10,   10,   5,    5};  // Controls how far the servo should move for each cycle.
-int ServoDelay[]    = {20,  20,   20,   21,   22,    20};  // Controls how fast the servo should move in ms
+byte ServoSteps[]   = {100,   100,   10,   10,   5,    5, 10};  // Controls how far the servo should move for each cycle.
+int ServoDelay[]    = {2,  2,   20,   100,   22,    200, 100};  // Controls how fast the servo should move in ms. Higher value means slower movements
 
-int GearSwUp[]    = {1000, 1500};  // Values below this means gear is to be set in Up position
-int GearSwDown[]  = {1510, 2000};  // Values higher than this gear is to be set in Down position
+// Define which LEDs should be controlld by the 2 RX Input. use vaules 1-5
+// If you have assinged LEDs to the Gear Up/Down sequence, do not assign them here.
+byte RX2_LED[] = {3, 4};
+byte RX3_LED[] = {5};
+
+// The following variable sets the cycle for each of the 5 led channels, led ch1 top to led ch5 last
+//									ON  	OFF 	ROUNDS DELAY(s)
+volatile int LedCycle[5][4] = {
+									{15,	 1,		0,    1000},	// LED1
+									{13,	42,		0,    0},		// LED2
+									{15,	40,		8,    1000},	// LED3
+									{15,	40,		5,    2000},  // LED4
+									{25,	40,		9,    3000},  // LED5
+								};
+
+						
+volatile int LedCount 			= 5;	// Number of leds to cycle
+volatile byte LedState[5]   	= {OFF, OFF, OFF, OFF, OFF};	// If LED is currently set to be on or off. Controlled by GEAR sequences of RX2 / RX3
+volatile byte LedStatus[5] 		= {0, 0, 0, 0, 0};	// 0 = off, 1 = on, 2 = delay
+volatile byte LedCycleCount[5] 	= {0, 0, 0, 0, 0};	
+volatile byte LedId[5] 			= {1, 2, 3, 4, 5};	// LED->PIN Channel order 
+volatile long LedTimer[5] 		= {};	// Used to hold timer in millis for when the last event happened
+
+
+long Led_Timer[]   = {0, 0 ,0 ,0 ,0};
+
+
+byte LedDefault[]   = {OFF, OFF, OFF ,OFF ,OFF};		// Default state of leds. If led is used in gear cycle this setting is ignored
+byte LedBlinkRate[] = {10, 1000, 25, 25, 1000};		// Set the rate of blink per led channel - 0 for no blink.
+
+
+int GearSwUp[]    = {900, 1400};  // Values in this range will intiate gear up position
+int GearSwDown[]  = {1610, 2100};  // Values in this range will  initiate gear down position
 
 // The following variable defines how to read the LED RX Channel. It allows for a 3 position/switch to be used.
 //  The array needs 6 parameteres, two for each channel of low and high.
 // First group - low,high, second group - low, high, 3rd group low, high
 // Leave some gap beteen each of the 3 goups
-//						LOW   HIGH  LOW   HIGH  LOW   HIGH
-int LedSw[]	    = {1000, 1400, 1410, 1800, 1810, 2000};	
+//				   		LOW   HIGH  LOW   HIGH  LOW   HIGH
+int LedSw[]	    = {900, 1400, 1410, 1800, 1810, 2100};	
 
 int LedSwOn     = 1500;  // Values below this means LEDs is to be enabled
 int LedSwOff    = 1510;  // Values below this means LEDs are to be enabled
@@ -143,11 +184,11 @@ int LedAuxSwOff = 1510;  // Used to tunr LED 5 off
 /* Set up PINs used by the components */
 #define SERVO1_PIN 7  // Door1 Servo - Digital port 2
 #define SERVO2_PIN 8  // Door2 Servo - Digital port 3
-#define SERVO3_PIN 9  // Main retract 1 servo
-#define SERVO4_PIN 10  // Main retract 2 servo Digital port 5
-#define SERVO5_PIN 11  // Tail/Nose Retract
-#define SERVO6_PIN 12  // Radioator flap Door Servo - Digital port 7
-#define SERVO7_PIN 13  // Servo for landing light in wing
+#define SERVO3_PIN 12  // Main retract 1 servo
+#define SERVO4_PIN 11  // Main retract 2 servo Digital port 5
+#define SERVO5_PIN 10  // Tail/Nose Retract
+#define SERVO6_PIN 9  // Radioator flap Door Servo - Digital port 7
+#define SERVO7_PIN 13 // Servo for landing light in wing
 
 // PINS assigned to LEDs
 #define LED1_PIN 6  // Digital pin controlling LED 1
@@ -156,11 +197,11 @@ int LedAuxSwOff = 1510;  // Used to tunr LED 5 off
 #define LED4_PIN 3
 #define LED5_PIN 2  // This is also connected to the internal LED on the arduino
 
-#define RX1_PIN A3  	// RX Channel input 1 
-#define RX2_PIN A1	// RX Channel input 2
-#define RX3_PIN A2	// RX Channel input 3 
+#define RX1_PIN A3  // RX Channel input 1 
+#define RX2_PIN A2	// RX Channel input 2
+#define RX3_PIN A1	// RX Channel input 3 
 
-/******* Values below should not need to be modofied unless you're altering the code **********/
+/******* Values below should not need to be modified unless you're altering the code **********/
 #define RX1_FLAG 1  // Used to check which RX input is triggered by interrupt
 #define RX2_FLAG 2
 #define RX3_FLAG 4
@@ -187,13 +228,12 @@ byte ServoMoveStatus[] = {0,0,0,0,0,0,0};  // Will be set to 1 when servo is in 
 
 
 byte LedPinIndex[] = {LED1_PIN, LED2_PIN, LED3_PIN, LED4_PIN, LED5_PIN};
-byte Led_Delay[]   = {10, 10, 10, 10, 10};
-long Led_Timer[]   = {0, 0 ,0 ,0 ,0};
 
 boolean Armed_Flag;	// Will be set to true once init has verified Retract switch is verified in the right position after startup
 boolean Gear_Flag;	
 boolean Led_Flag;
 boolean LedAux_Flag;
+boolean LedFlag1, LedFlag2, LedFlag3;
 
 byte GearCurrentState = 0;
 byte GearCycleStep    = 0;  // Will hold which cycle the current GearDown/Up function is currently processing
@@ -209,7 +249,7 @@ int iMinDown = min(GearSwDown[0], GearSwDown[1]);
 
 
 int i, a, b;
-long GearTimer, LedTimer, LedAuxTimer;
+long GearTimer, LedAuxTimer;
 
 // holds the update flags for RX interrupt routine
 volatile uint8_t bUpdateFlagsShared;
@@ -230,15 +270,20 @@ uint32_t ulRX1Start, ulRX2Start, ulRX3Start;
 Servo myServo[NUM_SERVOS];	// Generate servo objects
 
 SimpleTimer timer;
-long tim1;
+long tim1, tim2, tim3;
 
 void setup() {
-	delay(2000);
+	//delay(2000);
 	
 	#ifdef DEBUG
 		Serial.begin(115200);
 	#endif
 	getNVRAM();	// Read last known state of gear up/down position
+	
+	pinMode(RX1_PIN, INPUT);
+	pinMode(RX2_PIN, INPUT);
+	pinMode(RX3_PIN, INPUT);
+	
 	InitServos();
 
 	tim1=millis();
@@ -246,16 +291,18 @@ void setup() {
 
 	// using the PinChangeInt library, attach the interrupts
 	// used to read the channels
-	PCintPort::attachInterrupt(RX1_PIN, calcRX1,CHANGE);
-	PCintPort::attachInterrupt(RX2_PIN, calcRX2,CHANGE);
-	PCintPort::attachInterrupt(RX3_PIN, calcRX3,CHANGE);
+	PCintPort::attachInterrupt(RX1_PIN, calcRX1, CHANGE);
+	PCintPort::attachInterrupt(RX2_PIN, calcRX2, CHANGE);
+	PCintPort::attachInterrupt(RX3_PIN, calcRX3, CHANGE);
+	
+	setLedDefault();
 }
 
 void loop() {
 	boolean Led_Flag, LedAux_Flag, Gear_Flag;
 
 
-	for (i =0; i < NUM_SERVOS; i++) {
+	for (i =0; i <= NUM_SERVOS; i++) {
 		MoveServo(i);
 	}
 
@@ -309,7 +356,7 @@ void loop() {
 	Led_Flag    = getLedSwitch(unRX2In);
 	LedAux_Flag = getLedAuxSwitch(unRX3In);
 
-	switch (Gear_Flag) {
+	switch (Gear_Flag) {	// RXIn1
 	case GEAR_UP:
 		  GearUp();
 		  break;
@@ -320,12 +367,62 @@ void loop() {
 
 	}
 	
-	switch (Led_Flag) {
+	/*switch (Led_Flag) {	// RXIn2
 	case LED_ON:
+		if ( ! LedFlag1 ) {
+			Serial.println("LED_FLAG ON");
+			LedFlag1 = true;
+		}
 		break;
 	
 	case LED_OFF:
+		if ( LedFlag1 ) {
+			Serial.println("LED_FLAG OFF");
+           LedFlag1 = false;
+		}
 		break;
+		
+	}
+	
+	switch (LedAux_Flag) {	// RXIn3
+	case LED_ON:
+		if ( ! LedFlag2 ) {
+			Serial.println("LEDAUX_FLAG ON");
+           LedFlag2 = true;
+		}
+		break;
+	
+	case LED_OFF:
+		if ( ! LedFlag2 ) {
+			Serial.println("LEDAUX_FLAG OFF");
+           LedFlag2 = false;
+		}
+		break;
+		
+	}*/
+	
+	checkBlinkLed();
+	if (millis()-tim2 > 10000 ) {
+	/*	Serial.print(ServoTimer[6]);
+		Serial.print(" Delay... ");
+		Serial.print(ServoDelay[5]);
+		
+		
+		Serial.print(" Current... ");
+		Serial.print(ServoCurrent_Pos[6]);
+		Serial.print(" Old... ");
+		Serial.print(ServoOld_Pos[6]);
+		Serial.print(" Next ");
+		Serial.println(ServoNext_Pos[6]);
+		 */
+		Serial.print("RX1 In: ");
+		Serial.print(unRX1In);
+		Serial.print(" | RX2.In: ");
+		Serial.print(unRX2In);
+		Serial.print(" | RX3 In: ");
+		Serial.println(unRX3In);
+
+		tim2 = millis();
 		
 	}
 //
@@ -370,12 +467,7 @@ void MoveServo(int ServoId){
 			ServoCurrent_Pos[ServoId] = NewServoPos;
 			myServo[ServoId].writeMicroseconds(ServoCurrent_Pos[ServoId]);
 			ServoTimer[ServoId] = millis();
-
-			if(NewServoPos == ServoNext_Pos[ServoId]) {
-				ServoOld_Pos[ServoId] = NewServoPos;	// Set old pos once the servo has reached is final destination
-			}
-
-/*			#ifdef DEBUG
+/*			if (ServoId == 6 ){
 				Serial.print("ServoID: ");
 				Serial.print(ServoId);
 				Serial.print(" Servo Delay: ");
@@ -386,7 +478,15 @@ void MoveServo(int ServoId){
 				Serial.print(ServoNext_Pos[ServoId]);
 				Serial.print(" Old: ");
 				Serial.println(ServoOld_Pos[ServoId]);
-			#endif*/
+				
+			}*/
+			if(NewServoPos == ServoNext_Pos[ServoId]) {
+				ServoOld_Pos[ServoId] = NewServoPos;	// Set old pos once the servo has reached is final destination
+			}
+			
+			#ifdef DEBUG
+
+			#endif
 		}
     }
 }
@@ -396,35 +496,36 @@ void MoveServo(int ServoId){
  * Function will initiate the servo upon start of controller
  */
 void InitServos(){
-  int tmpPos;
-  // Set pulldown on all servo pins to avoud uncontrolled movements
-  for (int b = 0; b < NUM_SERVOS; b++){
-    digitalWrite(ServoPinIndex[b], LOW);
-    Servo_Min[b] = min(ServoUp_Pos[b], ServoDown_Pos[b]);
-    Servo_Max[b] = max(ServoUp_Pos[b], ServoDown_Pos[b]);
-  }
-  // Attach servos to arduino
-  for (int i = 0; i < NUM_SERVOS; i++){
-    
-	/* Define the defaults startup position for each servo */
-	if ( DefaultStartState == GEAR_UP ){
-		tmpPos = ServoUp_Pos[i];
-	} else {
-		tmpPos = ServoDown_Pos[i];
+	int tmpPos;
+	// Set pulldown on all servo pins to avoid uncontrolled movements
+	for (int b = 0; b <= NUM_SERVOS; b++){
+		pinMode(ServoPinIndex[b], OUTPUT);
+		digitalWrite(ServoPinIndex[b], LOW);
+		Servo_Min[b] = min(ServoUp_Pos[b], ServoDown_Pos[b]);
+		Servo_Max[b] = max(ServoUp_Pos[b], ServoDown_Pos[b]);
 	}
-	myServo[i].attach(ServoPinIndex[i]);	
-	myServo[i].writeMicroseconds(tmpPos);
-	ServoOld_Pos[i] = tmpPos;
-	ServoNext_Pos[i] = tmpPos;
-	ServoCurrent_Pos[i] = tmpPos;
-	ServoTimer[i] = millis();
-	#ifdef DEBUG
-	Serial.print(ServoPinIndex[i]);     
-	Serial.print(" ServoID: ");
-	Serial.print(i);
-	Serial.print(" Servo Pos: ");
-	Serial.println(tmpPos);
-    #endif
+	// Attach servos to arduino
+	for (int i = 0; i <= NUM_SERVOS; i++){
+		/* Define the defaults startup position for each servo */
+		if ( DefaultStartState == GEAR_UP ){
+			tmpPos = ServoUp_Pos[i];
+		} else {
+			tmpPos = ServoDown_Pos[i];
+		}
+		myServo[i].attach(ServoPinIndex[i]);	
+		myServo[i].writeMicroseconds(tmpPos);
+		ServoOld_Pos[i] = tmpPos;
+		ServoNext_Pos[i] = tmpPos;
+		ServoCurrent_Pos[i] = tmpPos;
+		ServoTimer[i] = millis();
+
+		#ifdef DEBUG
+		Serial.print(ServoPinIndex[i]);     
+		Serial.print(" ServoID: ");
+		Serial.print(i);
+		Serial.print(" Servo Pos: ");
+		Serial.println(tmpPos);
+		#endif
   }
   
   //FIX init routine to read last current setting in NVRAM and use as base
@@ -560,20 +661,23 @@ void GearDown(){
 
 			if (GearCycleStep < CYCLE_STEPS ){
 
-				int iLed = ServoSeq[1][startGearCycle][3];		// Only used by LED to hold ON or OFF
-				int iWait = ServoSeq[1][startGearCycle][2];      // Delay for next action
-				int Id   = ServoSeq[1][startGearCycle][1] - 1;  // id from seq array
+				int iLed      = ServoSeq[1][startGearCycle][3];		// Only used by LED to hold ON or OFF
+				int iWait     = ServoSeq[1][startGearCycle][2];		// Delay for next action
+				int Id        = ServoSeq[1][startGearCycle][1] - 1;	// id from seq array
 				int CycleType = ServoSeq[1][startGearCycle][0];		// Will hold SERVO or LED
 				
-				if ( (millis() - GearTimer) > iWait ) {
+				
 			
-					if ( startGearCycle < CYCLE_STEPS) {
+				if ( startGearCycle < CYCLE_STEPS) {
+					if ( (millis() - GearTimer) > iWait ) {
+						
+						GearTimer = millis();
 
 						if (CycleType == SERVO ) {
-
+							
 							ServoNext_Pos[Id]   = ServoDown_Pos[Id];
 							ServoMoveStatus[Id] = 1;
-							GearTimer = millis();
+							//GearTimer = millis();
 							#ifdef DEBUG
 							Serial.print("Gear down start seq ");
 							Serial.print(" Delay: ");
@@ -589,25 +693,35 @@ void GearDown(){
 						} else if ( CycleType == LED ) {
 							setLed(Id, iLed);							
 						}
-						++startGearCycle;
-
-					} else {
-						// Last cycle has been completed - reset values and set flags
-						startGearCycle = 0;  // Reset cycle counter
-						GearDownComplete = true;
-						GearUpComplete = false;
-						GearCurrentState = GEAR_DOWN;
-						setNVRAM();
-						#ifdef DEBUG
-						Serial.println("Gear down finished");
-						#endif
-/*						for (int j =0; j<6; j++){
-							Serial.print("Servo CUR: ");
-							Serial.println(ServoCurrent_Pos[j]);
-						}*/
 						
+						++startGearCycle;
+						
+						//Serial.print("Cycle Down : ");
+						//Serial.print(startGearCycle);
+						//Serial.print(" - CYCLES : ");
+						//Serial.print(CYCLE_STEPS);
+						//Serial.print(" - iWait : ");
+						//Serial.println(iWait);
 					}
+				} else {
+					
+					// Last cycle has been completed - reset values and set flags
+					startGearCycle = 0;  // Reset cycle counter
+					GearDownComplete = true;
+					GearUpComplete = false;
+					GearCurrentState = GEAR_DOWN;
+					setNVRAM();
+					#ifdef DEBUG
+					Serial.println("Gear down finished");
+					#endif
+/*					for (int j =0; j<6; j++){
+						Serial.print("Servo CUR: ");
+						Serial.println(ServoCurrent_Pos[j]);
+					}*/
+						
 				}
+					
+				
 			} 
 		}
 	}
@@ -628,18 +742,20 @@ void GearUp(){
 				//int  ServoWait = ServoSeq[0][startGearCycle][2];      // Delay for next action
 				//byte ServoId   = ServoSeq[0][startGearCycle][1] - 1;  // Servoid from seq array
 
-				int iLed = ServoSeq[0][startGearCycle][3];	// Only used by LED to hold ON or OFF
-				int iWait = ServoSeq[0][startGearCycle][2];      // Delay for next action
-				int Id   = ServoSeq[0][startGearCycle][1] - 1;  // Servoid from seq array
+				int iLed      = ServoSeq[0][startGearCycle][3];		// Only used by LED to hold ON or OFF
+				int iWait     = ServoSeq[0][startGearCycle][2];      	// Delay for next action
+				int Id        = ServoSeq[0][startGearCycle][1] - 1;  	// Servoid from seq array
 				int CycleType = ServoSeq[0][startGearCycle][0];		// Will hold SERVO or LED
 
-				if ( millis() - GearTimer > iWait ) {
-					if (startGearCycle < CYCLE_STEPS) {
+
+				if (startGearCycle <= CYCLE_STEPS) {
+					if ( millis() - GearTimer > iWait ) {
+						GearTimer = millis();
 						if (CycleType == SERVO ) {
 							ServoNext_Pos[Id]   = ServoUp_Pos[Id];
 							ServoMoveStatus[Id] = 1;
 					
-							GearTimer = millis();
+							//GearTimer = millis();
 							#ifdef DEBUG
 							Serial.print("Gear up start seq ");
 							Serial.print(" Delay: ");
@@ -651,26 +767,27 @@ void GearUp(){
 							Serial.print(" ID: ");
 							Serial.println(Id);
 							#endif
-						} else if ( CycleType == LED ) {
-							setLed(Id, iLed);
-							/*if ( iLed == 1 ) {
-								LedOn(Id);
-							} else {
-								LedOff(Id);
-							}*/
+						} else if ( CycleType == LED ) {							
+							setLed(Id, iLed);							
 						}
 	
 						++startGearCycle;
-					} else {
-						startGearCycle   = 0;  // Reset cycle counter
-						GearDownComplete = false;
-						GearUpComplete   = true;
-						GearCurrentState = GEAR_UP;
-						setNVRAM();
-						Serial.println("Gear Up finished");
-						
+						//Serial.print("Cycle Up : ");
+						//Serial.print(startGearCycle);
+						//Serial.print(" - CYCLES : ");
+						//Serial.println(CYCLE_STEPS);
 					}
+				} else {
+					
+					startGearCycle   = 0;  // Reset cycle counter
+					GearDownComplete = false;
+					GearUpComplete   = true;
+					GearCurrentState = GEAR_UP;
+					setNVRAM();
+					Serial.println("Gear Up finished");
+						
 				}
+				
 			}
 		}
 	}
@@ -685,14 +802,16 @@ void getNVRAM(){
 	if ( GearCurrentState == GEAR_UP) {
 		GearDownComplete = false;  
 		GearUpComplete   = true;
+		GearUp();
 	} else {
 		GearDownComplete = true;  
 		GearUpComplete   = false;		
+		GearDown();
 	}
 	
 	#ifdef DEBUG
-		Serial.print("Read DefaultGear state from NVRAM: ");
-		Serial.print(GearCurrentState);
+		Serial.print("Read Default Gear state from NVRAM: ");
+		Serial.println(GearCurrentState);
 	#endif
 
 }
@@ -701,7 +820,7 @@ void setNVRAM(){
 	EEPROM.write(0,GearCurrentState);
 	#ifdef DEBUG
 		Serial.print("Write DefaultGear state to NVRAM: ");
-		Serial.print(GearCurrentState);
+		Serial.println(GearCurrentState);
 	#endif
 }
 
@@ -709,11 +828,18 @@ void setNVRAM(){
  * Turn off all LEDs
  */
 void InitLed(){
+	
+	for (int i=0; i < 5; ++i ){
+		pinMode(LedPinIndex[i], OUTPUT);
+		digitalWrite(LedPinIndex[i], LOW);
+	}
+	/*
 	digitalWrite(LedPinIndex[0], LOW);
 	digitalWrite(LedPinIndex[1], LOW);
 	digitalWrite(LedPinIndex[2], LOW);
 	digitalWrite(LedPinIndex[3], LOW);
 	digitalWrite(LedPinIndex[4], LOW);
+	*/
 }
 void LedOn(byte bLed){
 	//if ((millis()-Led_Timer[bLed] ) > Led_Delay[bLed]){
@@ -732,15 +858,84 @@ void setLed(int iLed, int iStatus){
 	String sText= "";
 	if (iStatus == ON) {
 		sText = " LED On: ";
-		digitalWrite(LedPinIndex[iLed], HIGH);
-			
+		digitalWrite(LedPinIndex[iLed], HIGH);			
 	} else {
 		sText = " LED Off: ";
 		digitalWrite(LedPinIndex[iLed], LOW);
 	}
+	LedState[iLed] = iStatus;
 	Led_Timer[iLed] = millis();
 	#ifdef DEBUG
 	Serial.print(sText);
 	Serial.println(iLed);
 	#endif
+}
+
+void setLedDefault(){
+	int i=0;
+	for ( i=0; i < LedCount ; i++){
+		digitalWrite(LedPinIndex[i], LedDefault[i]);
+		Led_Timer[i] = millis();
+		LedState[i] = LedDefault[i];
+		LedTimer[5] = millis();
+	}
+	
+	// Detect LED channels used with servos - and disable them from the LED cycle list
+	//for ( i = 0;)
+}
+
+void checkBlinkLed(){
+	int i=0;
+	
+	for ( i=0; i < 5 ; i++){
+		if (LedBlinkRate[i] > 0 && LedState[i] == ON) {
+
+			if ( (millis() - Led_Timer[i] > LedBlinkRate[i]) ) {
+
+				if (LedStatus[i] ==  ON) {
+					digitalWrite(LedPinIndex[i], LOW);
+					LedStatus[i] = OFF;
+
+				} else {
+					digitalWrite(LedPinIndex[i], HIGH);
+					LedStatus[i] = ON;
+				}
+				Led_Timer[i] = millis();
+			}	
+		}
+	}
+}
+
+void LedSwitch() {
+	for ( byte i = 0; i < LedCount; ++i) {
+
+		// Turn off led
+		if ( LedState[i] == ON && (LedTimer[i] < millis()-LedCycle[i][0]) ) {
+			LedStatus[i] = 0;	// turned off
+			digitalWrite(LedId[i], LOW);
+			LedState[i] = OFF;
+			
+			++LedCycleCount[i];
+			if (LedCycleCount[i] > LedCycle[i][2]) {
+				LedStatus[i] 	 = 2;	// Reached round cycle - next stage -> delay
+				LedCycleCount[i] = 0;
+			}
+			LedTimer[i] = millis();
+			
+		}
+		// LED is in delay mode 
+		if ( LedState[i] == OFF && LedStatus[i] == 2 ){
+			if ( LedTimer[i] < millis()-LedCycle[i][3] ){
+				LedStatus[i] = 0;				
+			}
+		}
+		
+		if ( LedState[i] == OFF && (LedTimer[i] < millis()-LedCycle[i][1] ) && LedStatus[i] == 0 ){
+			// Turn on led
+			digitalWrite(LedId[i], HIGH);
+			LedState[i] = ON;
+			LedTimer[i] = millis();
+			
+		} 
+	}
 }
